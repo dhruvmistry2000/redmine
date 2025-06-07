@@ -1,0 +1,65 @@
+version: "3.8"
+
+services:
+  # ────────────────────────────────
+  # PostgreSQL (replaces mysql:)
+  # ────────────────────────────────
+  postgres:
+    image: postgres:16
+    container_name: redmine-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: redmine
+      POSTGRES_USER: redmine
+      POSTGRES_PASSWORD: redminepass
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - redmine-net
+    ports:
+      - "5432:5432"
+
+  redmine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: redmine-app
+    restart: always
+    depends_on:
+      - postgres                # ⬅️ updated
+    environment:
+      RAILS_ENV: production
+      REDMINE_DB_ADAPTER: postgresql  # ⬅️ adapter changes
+      REDMINE_DB_HOST: postgres
+      REDMINE_DB_PORT: 5432
+      REDMINE_DB_USERNAME: redmine
+      REDMINE_DB_PASSWORD: redminepass
+      REDMINE_DB_DATABASE: redmine
+      SECRET_KEY_BASE: 0d9d5ec92b2887070e1f03ff145f451751282584307754bc0ab635196d49a7e125a3d89e986652c753e8a0dda24d735322054ba273b1cebc57af37067fc550c6
+      REDMINE_PLUGINS_MIGRATE: "true"
+    volumes:
+      - ./data/redmine/files:/usr/src/redmine/files
+    networks:
+      - redmine-net
+    # ports:
+    #   - "3000:3000"
+
+  nginx:
+    image: nginx:latest
+    container_name: redmine-nginx
+    restart: always
+    depends_on:
+      - redmine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d/:/etc/nginx/conf.d/
+      - /etc/letsencrypt/live/abm.alwaystileandstonellc-dev.org/fullchain.pem:/etc/nginx/certs/server.crt:ro
+      - /etc/letsencrypt/live/abm.alwaystileandstonellc-dev.org/privkey.pem:/etc/nginx/certs/server.key:ro
+    networks:
+      - redmine-net
+
+networks:
+  redmine-net:
+    driver: bridge
